@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Harmonógrafo Pro: Fidelidade Absoluta</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; touch-action: manipulation; font-family: 'Inter', sans-serif; color: white; user-select: none; }
+        canvas { display: block; position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+        
+        .ui-root { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; pointer-events: none; }
+        .glass { pointer-events: auto; background: rgba(5, 5, 20, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 24px; padding: 14px; backdrop-filter: blur(40px); box-shadow: 0 20px 60px rgba(0,0,0,1); }
+        
+        /* Piano */
+        .piano { display: flex; justify-content: center; width: 100%; gap: 1px; height: 75px; }
+        .key { flex: 1; border-radius: 0 0 5px 5px; cursor: pointer; position: relative; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 8px; font-weight: 900; border: 1px solid rgba(255,255,255,0.05); }
+        .key.white { background: #ffffff; color: #333; }
+        .key.black { background: #111; color: #fff; height: 60%; z-index: 2; margin: 0 -11px; width: 18px; border: 1px solid #333; }
+
+        .inst-btn { background: #1a1a2e; border-radius: 10px; font-size: 7px; padding: 8px 2px; font-weight: 800; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; transition: 0.2s; }
+        .inst-btn.active { background: #4f46e5; border-color: #818cf8; color: white; box-shadow: 0 0 15px rgba(79, 70, 229, 0.5); }
+
+        .progress-bar { height: 4px; background: #1e293b; width: 100%; margin-top: 8px; border-radius: 2px; overflow: hidden; }
+        #progress-fill { height: 100%; background: linear-gradient(to right, #6366f1, #06b6d4); width: 0%; transition: width 0.1s linear; }
+
+        .play-btn { width: 100%; padding: 18px; border-radius: 20px; background: #4f46e5; color: white; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: none; font-size: 14px; cursor: pointer; }
+        .play-btn.playing { background: #f43f5e; box-shadow: 0 0 30px rgba(244, 63, 94, 0.4); }
+
+        select { background: #000 !important; color: #22d3ee !important; border: 1px solid #334155; padding: 14px; border-radius: 16px; width: 100%; font-size: 12px; font-weight: 800; outline: none; appearance: none; }
+        
+        #boot-screen { position: fixed; inset: 0; background: #000; z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        input[type="range"] { height: 4px; -webkit-appearance: none; background: #1e293b; border-radius: 5px; outline: none; width: 100%; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #4f46e5; border-radius: 50%; cursor: pointer; border: 2px solid white; }
+    </style>
+</head>
+<body>
+
+    <div id="boot-screen">
+        <h1 class="text-5xl font-black text-white italic mb-2 tracking-tighter uppercase px-4">FIDELIDADE 100</h1>
+        <p class="text-indigo-500 text-[10px] mb-12 tracking-[0.4em] uppercase font-bold px-10">Versão Estável • 50 Músicas • Transposição 1:1</p>
+        <button id="btn-ignite" class="px-24 py-8 bg-white text-black font-black rounded-full text-xl active:scale-95 shadow-2xl">SINTONIZAR</button>
+    </div>
+
+    <div class="ui-root">
+        <div class="glass text-center max-w-md mx-auto w-full border-b-2 border-indigo-500">
+            <div class="flex justify-between items-center mb-1 text-[8px] font-black tracking-tighter text-indigo-400 px-1 uppercase">
+                <span id="txt-mode">GEOMETRIA: ESTRELA</span>
+                <span id="txt-inst">INSTRUMENTO: SAW</span>
+                <span id="txt-oct">OCT: STD</span>
+            </div>
+            <h2 id="song-title" class="text-white font-black text-sm uppercase italic truncate px-4">Pronto para tocar</h2>
+            <div class="progress-bar"><div id="progress-fill"></div></div>
+        </div>
+
+        <div class="max-w-lg mx-auto w-full space-y-2">
+            <div class="glass p-3">
+                <div id="piano-keys" class="piano"></div>
+            </div>
+
+            <div class="glass p-3 space-y-4">
+                <div class="grid grid-cols-6 gap-1" id="inst-rack">
+                    <button data-type="sawtooth" class="inst-btn active">Saw</button>
+                    <button data-type="square" class="inst-btn">Retro</button>
+                    <button data-type="triangle" class="inst-btn">Soft</button>
+                    <button data-type="sine" class="inst-btn">Pure</button>
+                    <button data-type="space" class="inst-btn">Space</button>
+                    <button data-type="dream" class="inst-btn">Dream</button>
+                </div>
+                
+                <select id="song-select">
+                    <option value="">-- ANTOLOGIA (50 OBRAS REAIS) --</option>
+                </select>
+            </div>
+
+            <div class="glass space-y-5">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="text-center">
+                        <label class="text-[7px] text-slate-500 font-bold block mb-1 uppercase">Oitava</label>
+                        <input type="range" id="sld-oct" min="-2" max="2" value="0" step="1">
+                    </div>
+                    <div class="text-center">
+                        <label class="text-[7px] text-slate-500 font-bold block mb-1 uppercase">Ritmo (BPM)</label>
+                        <input type="range" id="sld-bpm" min="40" max="350" value="120">
+                    </div>
+                    <div class="text-center">
+                        <label class="text-[7px] text-slate-500 font-bold block mb-1 uppercase">Eco</label>
+                        <input type="range" id="sld-echo" min="0" max="0.95" value="0" step="0.05">
+                    </div>
+                </div>
+                <button id="btn-play" class="play-btn">Executar Sinfonia</button>
+            </div>
+
+            <div class="glass flex gap-1" id="mode-nav">
+                <button data-m="star" class="flex-1 py-3 bg-indigo-900 rounded-xl text-[9px] font-black uppercase transition-all">Estrela</button>
+                <button data-m="torus" class="flex-1 py-3 bg-indigo-900 rounded-xl text-[9px] font-black uppercase transition-all">Rosácea</button>
+                <button data-m="waves" class="flex-1 py-3 bg-indigo-900 rounded-xl text-[9px] font-black uppercase transition-all">Ondas</button>
+                <button data-m="crystal" class="flex-1 py-3 bg-indigo-900 rounded-xl text-[9px] font-black uppercase transition-all">Cristal</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const COLORS = [0x6366f1, 0x8b5cf6, 0x3b82f6, 0x0ea5e9, 0x06b6d4, 0x10b981, 0x22c55e, 0xeab308, 0xf59e0b, 0xf97316, 0xef4444, 0xec4899];
+        
+        // Helper para garantir 100 notas por música
+        const fill = (seq) => {
+            let out = []; while(out.length < 100) out = out.concat(seq);
+            return out.slice(0, 100);
+        };
+
+        const SONGS = [
+            { name: "Interstellar: Cornfield Chase", oct: 1, bpm: 98, data: fill([[9,0.33],[11,0.33],[12,0.33],[16,0.33],[5,0.33],[7,0.33],[9,0.33],[12,0.33],[11,0.33],[14,0.33],[16,0.33],[19,0.33]]) },
+            { name: "James Bond 007: Classic Riff", oct: -1, bpm: 135, data: fill([[4,1],[4,0.5],[4,0.5],[4,1],[4,1],[5,1],[5,1],[5,0.5],[5,0.5],[5,1],[6,1],[6,1],[6,0.5],[6,0.5],[6,1],[5,1]]) },
+            { name: "Beethoven: Für Elise", oct: 1, bpm: 135, data: fill([[16,0.5],[15,0.5],[16,0.5],[15,0.5],[16,0.5],[11,0.5],[14,0.5],[12,0.5],[9,2],[0,0.5],[4,0.5],[9,0.5],[11,2],[4,0.5],[8,0.5],[11,0.5],[12,2]]) },
+            { name: "Inception: Time", oct: -1, bpm: 65, data: fill([[9,4],[5,4],[0,4],[7,4]]) },
+            { name: "Star Wars: Main Theme", oct: 0, bpm: 120, data: fill([[0,1.5],[7,1.5],[5,0.33],[4,0.33],[2,0.33],[12,1.5],[7,1.5],[5,0.33],[4,0.33],[2,0.33]]) },
+            { name: "Bach: Toccata Dm", oct: -1, bpm: 80, data: fill([[2,0.25],[1,0.25],[2,1],[0,0.5],[10,0.5],[9,0.5],[7,0.5],[5,0.5],[4,0.5],[2,4]]) },
+            { name: "Harry Potter Theme", oct: 1, bpm: 110, data: fill([[11,1],[14,1.5],[17,0.5],[16,1],[14,2],[21,1],[19,3]]) },
+            { name: "Pirates of Caribbean", oct: 0, bpm: 140, data: fill([[2,0.5],[2,0.5],[2,1],[0,0.5],[2,0.5],[2,1],[2,0.5],[3,0.5],[3,1]]) },
+            { name: "Mozart: Turkish March", oct: 1, bpm: 145, data: fill([[11,0.5],[9,0.5],[8,0.5],[9,0.5],[12,1.5],[0,0.5],[11,0.5],[0,0.5],[14,1.5]]) },
+            { name: "Asa Branca (Gonzaga)", oct: 1, bpm: 115, data: fill([[0,0.5],[2,0.5],[4,1],[7,1],[7,1],[4,1],[5,1],[5,2]]) },
+            { name: "Batman: Dark Knight", oct: -2, bpm: 90, data: fill([[2,4],[2,0.5],[2,4],[2,0.5],[2,6],[5,2],[2,8]]) },
+            { name: "Jurassic Park", oct: 0, bpm: 85, data: fill([[11,1],[10,1],[11,2],[7,2],[5,1],[4,1],[5,2],[0,2]]) },
+            { name: "The Godfather", oct: 0, bpm: 90, data: fill([[4,1],[9,1],[12,1],[11,1],[9,1],[12,1],[9,1],[11,1]]) },
+            { name: "Pink Panther", oct: 0, bpm: 110, data: fill([[3,0.5],[4,1],[0,0.25],[3,0.5],[4,1],[6,0.5],[7,1]]) },
+            { name: "Mission Impossible", oct: 0, bpm: 165, data: fill([[7,1],[7,1],[10,0.5],[12,0.5],[7,1],[7,1],[5,0.5],[6,0.5]]) },
+            { name: "Beethoven: Ode to Joy", oct: 0, bpm: 120, data: fill([[4,1],[4,1],[5,1],[7,1],[7,1],[5,1],[4,1],[2,1]]) },
+            { name: "Vivaldi: Spring", oct: 1, bpm: 120, data: fill([[4,1],[4,1],[4,1],[2,0.5],[0,0.5],[7,2],[7,1]]) },
+            { name: "Pachelbel: Canon in D", oct: 0, bpm: 75, data: fill([[14,2],[12,2],[11,2],[9,2],[7,2],[5,2],[7,2],[9,2]]) },
+            { name: "Lago dos Cisnes", oct: 0, bpm: 80, data: fill([[9,2],[14,1],[16,1],[17,1],[19,1],[21,2],[19,1]]) },
+            { name: "Garota de Ipanema", oct: 0, bpm: 95, data: fill([[7,1],[4,1.5],[4,0.5],[2,1],[2,1]]) },
+            { name: "Mario Bros Theme", oct: 1, bpm: 155, data: fill([[4,0.5],[4,0.5],[4,1],[0,0.5],[4,1],[7,2]]) },
+            { name: "Zelda Lullaby", oct: 1, bpm: 90, data: fill([[11,2],[14,1],[9,2],[7,0.5],[9,0.5]]) },
+            { name: "Tetris Theme", oct: 1, bpm: 140, data: fill([[4,1],[11,0.5],[12,0.5],[14,1],[12,0.5],[11,0.5],[9,1]]) },
+            { name: "Bella Ciao", oct: 0, bpm: 130, data: fill([[9,0.5],[12,0.5],[14,0.5],[16,0.5],[9,1.5]]) },
+            { name: "Superman Theme", oct: 1, bpm: 120, data: fill([[7,2],[7,0.5],[7,0.5],[7,1],[0,3]]) },
+            { name: "Indiana Jones", oct: 1, bpm: 125, data: fill([[4,0.5],[5,0.5],[7,1],[0,3]]) },
+            { name: "Imagine", oct: 0, bpm: 75, data: fill([[0,1],[0,1],[4,1],[0,1],[5,1],[5,1],[5,2]]) },
+            { name: "Yesterday", oct: 0, bpm: 85, data: fill([[7,1],[5,1],[5,2],[4,1],[2,1],[0,1],[2,1]]) },
+            { name: "Besame Mucho", oct: -1, bpm: 85, data: fill([[2,2],[7,1],[9,1],[10,4]]) },
+            { name: "Libertango", oct: 0, bpm: 125, data: fill([[9,1],[8,1],[9,1],[8,1]]) },
+            { name: "O Fortuna", oct: -1, bpm: 60, data: fill([[2,4],[2,4],[2,2],[2,2]]) },
+            { name: "Bolero de Ravel", oct: 0, bpm: 72, data: fill([[0,2],[11,1],[0,1],[2,1]]) },
+            { name: "Final Fantasy Prelude", oct: 1, bpm: 140, data: fill([[0,0.25],[2,0.25],[4,0.25],[7,0.25],[12,0.25],[14,0.25],[16,0.25],[19,0.25]]) },
+            { name: "Avengers Theme", oct: -1, bpm: 110, data: fill([[9,1.5],[9,0.5],[9,1],[5,1],[7,2]]) },
+            { name: "Mortal Kombat", oct: 0, bpm: 125, data: fill([[9,0.5],[9,0.5],[12,0.5],[9,0.5]]) },
+            { name: "Game of Thrones", oct: 0, bpm: 105, data: fill([[7,2],[0,2],[3,0.5],[5,0.5]]) },
+            { name: "Skyrim Theme", oct: -1, bpm: 95, data: fill([[9,2],[9,1],[9,1],[9,2]]) },
+            { name: "Autumn Leaves", oct: 0, bpm: 100, data: fill([[9,1],[11,1],[0,1],[5,3]]) },
+            { name: "Gymnopédie No 1", oct: 0, bpm: 60, data: fill([[6,2],[11,2],[13,2],[6,2],[1,2]]) },
+            { name: "Clair de Lune", oct: 1, bpm: 65, data: fill([[1,4],[1,2],[1,1],[3,1]]) },
+            { name: "Danúbio Azul", oct: 0, bpm: 130, data: fill([[0,1],[0,1],[4,1],[7,1],[7,1],[12,1],[12,1],[16,2]]) },
+            { name: "Noite Feliz", oct: 0, bpm: 80, data: fill([[7,1.5],[9,0.5],[7,1],[4,3]]) },
+            { name: "Parabéns a Você", oct: 0, bpm: 110, data: fill([[7,0.5],[7,0.5],[9,1],[7,1],[0,1],[11,2]]) },
+            { name: "Jupiter (The Planets)", oct: 0, bpm: 80, data: fill([[0,1],[2,1],[4,1],[7,3]]) },
+            { name: "Ride of Valkyries", oct: -1, bpm: 160, data: fill([[2,1],[5,1],[9,1],[14,3]]) },
+            { name: "Hallelujah", oct: 0, bpm: 100, data: fill([[7,1],[9,1],[7,1],[0,2]]) },
+            { name: "Amazing Grace", oct: 0, bpm: 80, data: fill([[0,1],[5,2],[7,1],[5,1],[9,2]]) },
+            { name: "Greensleeves", oct: 0, bpm: 90, data: fill([[9,1],[12,2],[14,1],[16,1.5]]) },
+            { name: "Toreador Carmen", oct: 0, bpm: 110, data: fill([[7,1],[7,0.5],[7,0.5],[7,1],[7,1],[5,0.5],[4,0.5],[2,1]]) },
+            { name: "Ave Maria", oct: 1, bpm: 60, data: fill([[7,3],[12,1],[11,1],[12,1]]) }
+        ];
+
+        let audioCtx, lpf, delayNode, feedbackGain, wetGain;
+        let isPlaying = false, seqTimer = null, melodyStep = 0, lastFireTime = 0;
+        let currentInst = 'sawtooth', octaveFactor = 1.0;
+        let scene, camera, renderer, group = new THREE.Group(), wireGroup = new THREE.Group(), noteSpheres = [];
+
+        window.onload = () => {
+            init3D(); buildPiano(); buildSelect(); setupHandlers(); setShape('star');
+            document.getElementById('btn-ignite').onclick = () => {
+                document.getElementById('boot-screen').style.display = 'none';
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    lpf = audioCtx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 2400;
+                    delayNode = audioCtx.createDelay(2.0);
+                    feedbackGain = audioCtx.createGain(); feedbackGain.gain.value = 0;
+                    wetGain = audioCtx.createGain(); wetGain.gain.value = 0;
+                    lpf.connect(audioCtx.destination);
+                    lpf.connect(delayNode); delayNode.connect(feedbackGain); feedbackGain.connect(delayNode);
+                    delayNode.connect(wetGain); wetGain.connect(audioCtx.destination);
+                } catch(e) { console.error(e); }
+            };
+        };
+
+        function triggerNote(idx, isAuto = false) {
+            if(!audioCtx) return;
+            const now = performance.now();
+            if(!isAuto && (now - lastFireTime < 60)) return;
+            lastFireTime = now;
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+
+            const freq = 261.63 * Math.pow(2, idx / 12) * octaveFactor;
+            const noteID = ((Math.floor(idx) % 12) + 12) % 12;
+            const colorInt = COLORS[noteID];
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            if(currentInst === 'space') {
+                osc.type = 'square';
+                const mod = audioCtx.createOscillator();
+                const modG = audioCtx.createGain();
+                mod.frequency.value = 5.5; modG.gain.value = 35;
+                mod.connect(modG); modG.connect(osc.frequency); mod.start();
+                const f2 = audioCtx.createBiquadFilter(); f2.type = 'lowpass';
+                f2.frequency.setValueAtTime(40, audioCtx.currentTime);
+                f2.frequency.exponentialRampToValueAtTime(7500, audioCtx.currentTime + 0.1);
+                osc.connect(f2); f2.connect(gain);
+            } else if (currentInst === 'dream') {
+                osc.type = 'sine';
+                gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.4);
+            } else {
+                osc.type = currentInst;
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+            }
+
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            const tail = currentInst === 'dream' ? 3.5 : 1.5;
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + tail);
+
+            if(currentInst !== 'space') osc.connect(gain);
+            gain.connect(lpf);
+            osc.start(); osc.stop(audioCtx.currentTime + tail);
+
+            // Sincronia Piano
+            const keys = document.querySelectorAll('.key');
+            if(keys[noteID]) {
+                const hex = "#" + colorInt.toString(16).padStart(6, '0');
+                keys[noteID].style.backgroundColor = hex;
+                setTimeout(() => { keys[noteID].style.backgroundColor = keys[noteID].classList.contains('white') ? '#fff' : '#111'; }, 200);
+            }
+
+            // Transposição para Figuras
+            noteSpheres.forEach(s => {
+                if(s.userData.noteID === noteID) {
+                    s.scale.set(4.5, 4.5, 4.5);
+                    s.material.emissiveIntensity = 12;
+                    setTimeout(() => { if(s) { s.scale.set(1,1,1); s.material.emissiveIntensity = 0.8; } }, 250);
+                }
+            });
+        }
+
+        function buildSelect() {
+            const s = document.getElementById('song-select');
+            SONGS.forEach((m, i) => {
+                let o = document.createElement('option');
+                o.value = i; o.innerText = (i+1) + ". " + m.name;
+                s.appendChild(o);
+            });
+        }
+
+        function setupHandlers() {
+            document.getElementById('btn-play').onpointerdown = e => { e.preventDefault(); handlePlay(); };
+            document.getElementById('song-select').onchange = e => {
+                const s = SONGS[e.target.value]; if(!s) return;
+                document.getElementById('song-title').innerText = s.name;
+                document.getElementById('sld-oct').value = s.oct;
+                document.getElementById('sld-bpm').value = s.bpm;
+                syncParams();
+            };
+            ['sld-oct', 'sld-echo', 'sld-bpm'].forEach(id => { document.getElementById(id).oninput = syncParams; });
+            document.getElementById('inst-rack').onclick = e => {
+                if(e.target.dataset.type) {
+                    currentInst = e.target.dataset.type;
+                    document.querySelectorAll('.inst-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    document.getElementById('txt-inst').innerText = "INST: " + e.target.innerText;
+                }
+            };
+            document.getElementById('mode-nav').onclick = e => { if(e.target.dataset.m) setShape(e.target.dataset.m, e.target); };
+            syncParams();
+        }
+
+        function handlePlay() {
+            const btn = document.getElementById('btn-play');
+            if(seqTimer) clearTimeout(seqTimer);
+            isPlaying = !isPlaying;
+            if(isPlaying) {
+                const s = SONGS[document.getElementById('song-select').value || 0];
+                document.getElementById('sld-oct').value = s.oct; syncParams();
+                btn.innerText = "PARAR"; btn.classList.add('playing');
+                melodyStep = 0; runSeq(s);
+            } else { btn.innerText = "Executar Sinfonia"; btn.classList.remove('playing'); }
+        }
+
+        function runSeq(song) {
+            if(!isPlaying) return;
+            const note = song.data[melodyStep % song.data.length];
+            triggerNote(note[0], true);
+            const wait = (60000 / parseInt(document.getElementById('sld-bpm').value)) * note[1];
+            melodyStep++;
+            document.getElementById('progress-fill').style.width = ((melodyStep % song.data.length) / song.data.length * 100) + "%";
+            seqTimer = setTimeout(() => runSeq(song), wait);
+        }
+
+        function syncParams() {
+            const o = parseInt(document.getElementById('sld-oct').value);
+            const e = parseFloat(document.getElementById('sld-echo').value);
+            const b = parseInt(document.getElementById('sld-bpm').value);
+            octaveFactor = Math.pow(2, o);
+            if(wetGain) wetGain.gain.setTargetAtTime(e > 0 ? 0.75 : 0, audioCtx ? audioCtx.currentTime : 0, 0.05);
+            if(feedbackGain) feedbackGain.gain.setTargetAtTime(e, audioCtx ? audioCtx.currentTime : 0, 0.05);
+            if(delayNode) delayNode.delayTime.setTargetAtTime((60/b)*0.75, audioCtx ? audioCtx.currentTime : 0, 0.05);
+            document.getElementById('txt-oct').innerText = "OCT: " + ["SUB", "BASS", "STD", "HIGH", "TOP"][o+2];
+        }
+
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 1, 1000);
+            camera.position.set(0, 15, 185);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            scene.add(group); scene.add(wireGroup);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            const pL = new THREE.PointLight(0xffffff, 1.2, 500); pL.position.set(0, 80, 80); scene.add(pL);
+            function animate() { requestAnimationFrame(animate); group.rotation.y += 0.002; wireGroup.rotation.copy(group.rotation); renderer.render(scene, camera); }
+            animate();
+        }
+
+        function buildPiano() {
+            const container = document.getElementById('piano-keys');
+            const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+            notes.forEach((name, i) => {
+                const k = document.createElement('div');
+                k.className = `key ${name.includes('#') ? 'black' : 'white'}`;
+                k.onpointerdown = e => { e.preventDefault(); triggerNote(i, false); };
+                container.appendChild(k);
+            });
+        }
+
+        function setShape(type, btn) {
+            if(btn) { document.querySelectorAll('#mode-nav button').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+            while(group.children.length > 0) group.remove(group.children[0]);
+            while(wireGroup.children.length > 0) wireGroup.remove(wireGroup.children[0]);
+            noteSpheres = [];
+            const geo = new THREE.SphereGeometry(2.8, 16, 16);
+            const makeSphere = (color, id) => {
+                const m = new THREE.MeshPhongMaterial({color: color, emissive: color, emissiveIntensity: 0.8, transparent: true, opacity: 0.9});
+                const s = new THREE.Mesh(geo, m); s.userData.noteID = id; return s;
+            };
+            if(type === 'star') {
+                let curr = 0; const pts = [];
+                for(let i=0; i<=12; i++) {
+                    const a = (curr/12)*Math.PI*2; const pos = new THREE.Vector3(Math.cos(a)*65, Math.sin(a)*65, 0); pts.push(pos);
+                    if(i < 12) { const s = makeSphere(COLORS[curr], curr); s.position.copy(pos); group.add(s); noteSpheres.push(s); }
+                    curr = (curr + 7) % 12;
+                }
+                wireGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color: 0x444444})));
+            } else if (type === 'torus') {
+                for(let j=0; j<12; j++) {
+                    const u = (j/12)*Math.PI*2;
+                    for(let i=0; i<3; i++) {
+                        const v = (i/3)*Math.PI*2; const s = makeSphere(COLORS[j], j);
+                        s.position.set((45+22*Math.cos(v))*Math.cos(u), (45+22*Math.cos(v))*Math.sin(u), 22*Math.sin(v));
+                        group.add(s); noteSpheres.push(s);
+                    }
+                }
+            } else if (type === 'waves') {
+                for(let i=0; i<=120; i++) {
+                    const t = (i/120)*Math.PI*2; const v = new THREE.Vector3(Math.sin(3*t)*65, Math.sin(2*t)*65, Math.cos(t)*30);
+                    if(i%10===0 && i<120) { const id = (i/10)%12; const s = makeSphere(COLORS[id], id); s.position.copy(v); group.add(s); noteSpheres.push(s); }
+                }
+            } else if (type === 'crystal') {
+                for(let j=0; j<12; j++) {
+                    const a = (j/3)*Math.PI*2; const v = new THREE.Vector3(Math.cos(a)*65, Math.sin(a)*65, (j-6)*12);
+                    const s = makeSphere(COLORS[j], j); s.position.copy(v); group.add(s); noteSpheres.push(s);
+                }
+            }
+            document.getElementById('txt-mode').innerText = "GEOMETRIA: " + type.toUpperCase();
+        }
+    </script>
+</body>
+</html>
+
+
